@@ -1,0 +1,13 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# 환경변수
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
