@@ -893,6 +893,7 @@ def run_pipeline(test_mode: bool = False):
 
 
 if __name__ == "__main__":
+    # 영화 데이터 수집 테스트
     parser = argparse.ArgumentParser(description="Vibe-Link 영화 수집 파이프라인 v3.0")
     parser.add_argument("--test", action="store_true", help="테스트 모드 (소스당 1페이지만)")
     args = parser.parse_args()
