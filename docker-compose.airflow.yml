@@ -1,0 +1,96 @@
+# ─────────────────────────────────────────────
+# Vibe-Link Data Pipeline — Airflow (LocalExecutor)
+#
+# 사용법:
+#   docker-compose -f docker-compose.airflow.yml up -d
+#   http://localhost:8180 (admin / admin)
+#
+# 호스트 머신의 PostgreSQL(5432)과 AIServer(8000)에 접근합니다.
+# ─────────────────────────────────────────────
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.9.1-python3.12
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: ""
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    # Data-pipeline 환경변수 전달
+    TMDB_API_KEY: ${TMDB_API_KEY}
+    DB_HOST: ${DB_HOST:-host.docker.internal}
+    DB_PORT: ${DB_PORT:-5432}
+    DB_NAME: ${DB_NAME:-vibelink}
+    DB_USER: ${DB_USER:-vibelink}
+    DB_PASSWORD: ${DB_PASSWORD:-vibelink1234}
+    AISERVER_BASE_URL: ${AISERVER_BASE_URL:-http://host.docker.internal:8000}
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./common:/opt/airflow/dags/common
+    - ./movie:/opt/airflow/dags/movie
+    - airflow-logs:/opt/airflow/logs
+  depends_on:
+    airflow-postgres:
+      condition: service_healthy
+
+services:
+  # Airflow 전용 PostgreSQL (메타데이터 DB)
+  airflow-postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # DB 마이그레이션 + admin 사용자 생성 (초기 1회)
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        pip install psycopg2-binary requests beautifulsoup4 python-dotenv &&
+        airflow db migrate &&
+        airflow users create \
+          --username admin --password admin \
+          --firstname Admin --lastname User \
+          --role Admin --email admin@vibelink.com || true
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # Airflow Webserver (UI)
+  airflow-webserver:
+    <<: *airflow-common
+    command: >
+      bash -c "pip install psycopg2-binary requests beautifulsoup4 python-dotenv &&
+               airflow webserver"
+    ports:
+      - "8180:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # Airflow Scheduler
+  airflow-scheduler:
+    <<: *airflow-common
+    command: >
+      bash -c "pip install psycopg2-binary requests beautifulsoup4 python-dotenv &&
+               airflow scheduler"
+    restart: unless-stopped
+
+volumes:
+  airflow-pgdata:
+  airflow-logs:

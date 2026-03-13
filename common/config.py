@@ -27,3 +27,8 @@ DB_CONFIG = {
 TMDB_API_KEY = os.environ.get("TMDB_API_KEY", "")
 TMDB_BASE = "https://api.themoviedb.org/3"
 TMDB_IMG_BASE = "https://image.tmdb.org/t/p/w500"
+
+# ─────────────────────────────────────────────
+# AIServer (Neo4j Graph Processing)
+# ─────────────────────────────────────────────
+AISERVER_BASE_URL = os.environ.get("AISERVER_BASE_URL", "http://localhost:8000")
