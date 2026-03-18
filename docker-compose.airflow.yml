@@ -2,6 +2,7 @@
 # Vibe-Link Data Pipeline — Airflow (LocalExecutor)
 #
 # 사용법:
+#   docker-compose -f docker-compose.airflow.yml build
 #   docker-compose -f docker-compose.airflow.yml up -d
 #   http://localhost:8180 (admin / admin)
 #
@@ -9,7 +10,9 @@
 # ─────────────────────────────────────────────
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.9.1-python3.12
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
   environment: &airflow-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow-postgres:5432/airflow
@@ -57,7 +60,6 @@ services:
     command:
       - -c
       - |
-        pip install psycopg2-binary requests beautifulsoup4 python-dotenv &&
         airflow db migrate &&
         airflow users create \
           --username admin --password admin \
@@ -71,9 +73,7 @@ services:
   # Airflow Webserver (UI)
   airflow-webserver:
     <<: *airflow-common
-    command: >
-      bash -c "pip install psycopg2-binary requests beautifulsoup4 python-dotenv &&
-               airflow webserver"
+    command: airflow webserver
     ports:
       - "8180:8080"
     healthcheck:
@@ -86,9 +86,7 @@ services:
   # Airflow Scheduler
   airflow-scheduler:
     <<: *airflow-common
-    command: >
-      bash -c "pip install psycopg2-binary requests beautifulsoup4 python-dotenv &&
-               airflow scheduler"
+    command: airflow scheduler
     restart: unless-stopped
 
 volumes:
