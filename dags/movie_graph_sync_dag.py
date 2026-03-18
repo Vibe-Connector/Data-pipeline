@@ -27,6 +27,7 @@ default_args = {
     start_date=datetime(2026, 3, 13),
     catchup=False,
     tags=["movie", "graph_sync", "stage2"],
+    params={"with_fitness": False},  # 기본 스킵, 수동 트리거 시 True로 변경 가능
 )
 def movie_graph_sync_pipeline():
 
@@ -73,8 +74,17 @@ def movie_graph_sync_pipeline():
         }
 
     @task
-    def evaluate_fitness(sync_result: dict):
-        """(조건부) 신규 동기화 아이템에 대해 LLM FITS_* 가중치 평가"""
+    def evaluate_fitness(sync_result: dict, **context):
+        """(조건부) 신규 동기화 아이템에 대해 LLM FITS_* 가중치 평가
+
+        기본 스킵. DAG params에서 with_fitness=True로 설정 시 실행.
+        (LLM 비용 + 수분 소요)
+        """
+        with_fitness = context["params"].get("with_fitness", False)
+
+        if not with_fitness:
+            return {"skipped": True, "reason": "with_fitness=False (default)"}
+
         if sync_result["synced"] == 0:
             return {"skipped": True, "reason": "No items synced"}
 
