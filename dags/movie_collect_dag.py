@@ -103,7 +103,7 @@ def movie_collect_pipeline():
 
         return batches
 
-    @task(execution_timeout=timedelta(minutes=10))
+    @task(execution_timeout=timedelta(minutes=15))
     def transform_and_load_batch(batch: dict):
         """배치 단위 상세정보 보강 + Transform + PostgreSQL 저장
 
