@@ -73,16 +73,22 @@ def movie_collect_pipeline():
 
         return {"count": len(all_movies), "filepath": filepath}
 
-    @task
+    @task(execution_timeout=timedelta(minutes=60))
     def transform_and_load(extract_result: dict):
-        """상세정보 보강 + Transform + PostgreSQL 저장"""
+        """상세정보 보강 + Transform + PostgreSQL 저장
+
+        배치 단위(50편)로 처리하며 중간 진행 로그를 출력합니다.
+        """
         import json
+        import logging
 
         from common.config import TMDB_API_KEY
         from common.db import get_db_connection
         from movie.extract import TMDBClient
         from movie.load import load_movie_to_postgres
         from movie.transform import transform_movie
+
+        log = logging.getLogger(__name__)
 
         with open(extract_result["filepath"], encoding="utf-8") as f:
             all_movies = json.load(f)
@@ -91,7 +97,12 @@ def movie_collect_pipeline():
         conn = get_db_connection()
 
         saved, failed = 0, 0
-        for m in all_movies:
+        total = len(all_movies)
+        BATCH_SIZE = 50
+
+        log.info(f"transform_and_load 시작: 총 {total}편, 배치 크기 {BATCH_SIZE}")
+
+        for i, m in enumerate(all_movies):
             detail = tmdb.fetch_movie_detail(m["id"])
             if not detail:
                 failed += 1
@@ -106,7 +117,13 @@ def movie_collect_pipeline():
             else:
                 failed += 1
 
+            # 배치 단위 진행 로그
+            if (i + 1) % BATCH_SIZE == 0 or (i + 1) == total:
+                log.info(f"  진행: {i + 1}/{total} ({(i + 1) / total * 100:.0f}%) "
+                         f"— 저장 {saved}건, 실패 {failed}건")
+
         conn.close()
+        log.info(f"transform_and_load 완료: 저장 {saved}건, 실패 {failed}건")
         return {"saved": saved, "failed": failed}
 
     trigger_graph_sync = TriggerDagRunOperator(
